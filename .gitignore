@@ -1,0 +1,6 @@
+.dev/.venv/
+.dev/.uv/
+.dev/uv.lock
+.dev/__pycache__/
+.dev/*.pyc
+.DS_Store
