@@ -17,7 +17,7 @@ asyncio_mode = "auto"
 
 [project.scripts]
 skill_research = "skill_research:main"
-skill_research_fetch_data = "skill_research.fetch_data:main"
+skill_research_fetch_data = "skill_research.data.fetch:main"
 
 [build-system]
 requires = ["uv_build>=0.11.21,<0.12.0"]
