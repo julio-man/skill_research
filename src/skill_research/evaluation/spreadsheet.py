@@ -52,6 +52,9 @@ class SpreadsheetTaskEvaluator:
                 metadata=metadata,
             )
 
+        metadata["expected_region_values"] = self._collect_region_values(wb_gold, task.answer_spec.regions)
+        metadata["actual_region_values"] = self._collect_region_values(wb_candidate, task.answer_spec.regions)
+
         checks: list[CheckResult] = []
         for region in task.answer_spec.regions:
             result = self._compare_region(wb_gold, wb_candidate, region)
@@ -72,6 +75,18 @@ class SpreadsheetTaskEvaluator:
             checks=checks,
             metadata=metadata,
         )
+
+    def _collect_region_values(self, workbook, regions: list[RegionSpec]) -> dict[str, object]:
+        values: dict[str, object] = {}
+        for region in regions:
+            sheet_name = region.sheet_name or workbook.sheetnames[0]
+            if sheet_name not in workbook.sheetnames:
+                continue
+            worksheet = workbook[sheet_name]
+            cell_names = self._generate_cell_names(region, worksheet.max_row, worksheet.max_column)
+            for cell_name in cell_names:
+                values[f"{sheet_name}!{cell_name}"] = self._normalize_value(worksheet[cell_name].value)
+        return values
 
     def _compare_region(self, wb_gold, wb_candidate, region: RegionSpec) -> CheckResult:
         sheet_name = region.sheet_name or wb_gold.sheetnames[0]
@@ -98,8 +113,8 @@ class SpreadsheetTaskEvaluator:
                     details={
                         "sheet_name": sheet_name,
                         "cell": cell_name,
-                        "expected": gold_value,
-                        "actual": candidate_value,
+                        "expected": self._normalize_value(gold_value),
+                        "actual": self._normalize_value(candidate_value),
                     },
                 )
 

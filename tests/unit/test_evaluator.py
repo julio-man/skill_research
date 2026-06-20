@@ -65,3 +65,18 @@ def test_spreadsheet_evaluator_reports_region_context_in_metadata(tmp_path: Path
 
     assert result.metadata["task_id"] == "379-36"
     assert result.metadata["answer_region_raw"] == "'Sheet1'!E2:E17"
+    assert "expected_region_values" in result.metadata
+    assert "actual_region_values" in result.metadata
+    assert result.metadata["expected_region_values"]["Sheet1!E10"] == "Georgia WH Tax"
+    assert result.metadata["actual_region_values"]["Sheet1!E10"] == "Georgia WH Tax"
+
+
+def test_spreadsheet_evaluator_includes_expected_and_actual_region_values_on_failure(tmp_path: Path) -> None:
+    task = _task_379_36()
+    candidate = tmp_path / "candidate.xlsx"
+    shutil.copy(task.initial_workbook_path, candidate)
+
+    result = SpreadsheetTaskEvaluator().evaluate(task, candidate)
+
+    assert result.metadata["expected_region_values"]["Sheet1!E10"] == "Georgia WH Tax"
+    assert result.metadata["actual_region_values"]["Sheet1!E10"] == "Georgia Its Tax/ga Tx *****0"
