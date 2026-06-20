@@ -23,9 +23,11 @@ class _FakeGeminiClient:
         self.api_key = api_key
 
 
-def test_resolve_llm_config_for_openai_compatible_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_llm_config_for_openai_compatible_from_env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
     monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:8000/v1")
+    monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
 
     config = resolve_llm_config(provider="openai", model="gpt-5.4")
 
@@ -45,7 +47,8 @@ def test_resolve_llm_config_for_anthropic_from_env(monkeypatch: pytest.MonkeyPat
     assert config.base_url is None
 
 
-def test_resolve_llm_config_for_gemini_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_llm_config_for_gemini_from_env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
 
     config = resolve_llm_config(provider="gemini", model="gemini-2.5-pro")
@@ -54,9 +57,11 @@ def test_resolve_llm_config_for_gemini_from_env(monkeypatch: pytest.MonkeyPatch)
     assert config.api_key == "gemini-key"
 
 
-def test_resolve_llm_config_rejects_missing_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_llm_config_rejects_missing_key(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
 
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
         resolve_llm_config(provider="openai", model="gpt-5.4")
