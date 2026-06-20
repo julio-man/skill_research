@@ -8,6 +8,7 @@ import json
 from skill_research.data.types import SpreadsheetTask
 from skill_research.evaluation.base import EvaluationResult
 from skill_research.runner.agent import run_agent_once
+from skill_research.traces import TraceRecord, save_trace_record, save_trace_summary
 
 
 class BenchmarkRunError(RuntimeError):
@@ -57,6 +58,7 @@ def run_benchmark(
 ) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     task_results = []
+    trace_records = []
 
     for task in tasks:
         task_output_dir = output_dir / task.task_id
@@ -98,6 +100,22 @@ def run_benchmark(
             },
         }
         (task_output_dir / "result.json").write_text(json.dumps(task_result, indent=2), encoding="utf-8")
+        trace_record = TraceRecord(
+            task_id=task.task_id,
+            task_instruction=task.instruction,
+            skill_path=str(skill_path),
+            model=llm_client.model,
+            provider=llm_client.provider,
+            candidate_workbook_path=agent_run.candidate_workbook_path,
+            code_path=agent_run.code_path,
+            raw_model_output=agent_run.raw_model_output,
+            execution_stdout=agent_run.execution_stdout,
+            execution_stderr=agent_run.execution_stderr,
+            execution_returncode=agent_run.execution_returncode,
+            evaluation=task_result["evaluation"],
+        )
+        save_trace_record(trace_record, task_output_dir / "trace.json")
+        trace_records.append(trace_record)
         task_results.append((task_result, evaluation))
 
     evaluations = [evaluation for _, evaluation in task_results]
@@ -107,4 +125,5 @@ def run_benchmark(
         "results": [task_result for task_result, _ in task_results],
     }
     (output_dir / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    save_trace_summary(trace_records, output_dir / "traces.json")
     return payload
