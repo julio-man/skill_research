@@ -4,7 +4,12 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "anthropic>=0.57.1",
+    "google-genai>=1.23.0",
+    "openai>=1.93.0",
+    "openpyxl>=3.1.0",
+]
 
 [dependency-groups]
 dev = [
@@ -18,6 +23,7 @@ asyncio_mode = "auto"
 [project.scripts]
 skill_research = "skill_research:main"
 skill_research_fetch_data = "skill_research.data.fetch:main"
+skill_research_run_spreadsheetbench_verified = "skill_research.cli.run_spreadsheetbench_verified:main"
 
 [build-system]
 requires = ["uv_build>=0.11.21,<0.12.0"]

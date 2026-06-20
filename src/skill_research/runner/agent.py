@@ -51,13 +51,15 @@ def extract_python(raw: str) -> str:
 
 
 def build_agent_messages(task: SpreadsheetTask, skill_text: str, output_workbook_path: Path) -> list[ChatMessage]:
+    input_workbook_path = task.initial_workbook_path.resolve()
+    output_workbook_path = output_workbook_path.resolve()
     user_prompt = f"""SKILL DOCUMENT:
 {skill_text}
 
 TASK:
 {task.instruction}
 
-INPUT_WORKBOOK={task.initial_workbook_path}
+INPUT_WORKBOOK={input_workbook_path}
 OUTPUT_WORKBOOK={output_workbook_path}
 
 Return only runnable Python code.
@@ -86,7 +88,7 @@ def run_agent_once(
     raw_model_output = llm_client.complete(messages, temperature=temperature, max_tokens=max_tokens)
     code = extract_python(raw_model_output)
     prelude = (
-        f"INPUT_WORKBOOK = {str(task.initial_workbook_path)!r}\n"
+        f"INPUT_WORKBOOK = {str(task.initial_workbook_path.resolve())!r}\n"
         f"OUTPUT_WORKBOOK = {str(candidate_workbook_path)!r}\n"
     )
     code_path.write_text(prelude + code, encoding="utf-8")

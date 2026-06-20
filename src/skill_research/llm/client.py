@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Final
 
 
@@ -75,6 +76,19 @@ class LLMClient:
 
 
 
+def _load_project_env() -> None:
+    env_path = Path.cwd() / ".env"
+    if not env_path.exists():
+        return
+
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
+
+
 def _normalize_provider(provider: str) -> str:
     normalized = provider.strip().lower()
     if normalized in OPENAI_ALIASES:
@@ -104,6 +118,7 @@ def _resolve_api_key(provider: str, api_key: str | None) -> str:
 
 
 def resolve_llm_config(provider: str, model: str, api_key: str | None = None, base_url: str | None = None) -> LLMConfig:
+    _load_project_env()
     normalized_provider = _normalize_provider(provider)
     resolved_api_key = _resolve_api_key(normalized_provider, api_key)
 
