@@ -69,7 +69,9 @@ def test_build_agent_messages_contains_skill_task_and_paths(tmp_path: Path) -> N
 
 def test_run_agent_once_writes_code_and_candidate_artifact(tmp_path: Path) -> None:
     task = _make_task(tmp_path)
-    skill_path = tmp_path / "SKILL.md"
+    skill_dir = tmp_path / "skill"
+    skill_dir.mkdir()
+    skill_path = skill_dir / "SKILL.md"
     skill_path.write_text("Use openpyxl.")
     output_dir = tmp_path / "run"
     llm_client = _FakeLLMClient(
@@ -84,7 +86,7 @@ print('done')
 
     result = run_agent_once(
         task=task,
-        skill_path=skill_path,
+        skill_path=skill_dir,
         output_dir=output_dir,
         llm_client=llm_client,
         temperature=0.0,
