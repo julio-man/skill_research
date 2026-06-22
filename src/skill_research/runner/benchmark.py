@@ -120,9 +120,30 @@ def run_benchmark(
 
     evaluations = [evaluation for _, evaluation in task_results]
     summary = summarize_results(evaluations)
+    traces_payload = {
+        "num_traces": len(trace_records),
+        "traces": [
+            {
+                "task_id": record.task_id,
+                "task_instruction": record.task_instruction,
+                "skill_path": record.skill_path,
+                "model": record.model,
+                "provider": record.provider,
+                "candidate_workbook_path": record.candidate_workbook_path,
+                "code_path": record.code_path,
+                "raw_model_output": record.raw_model_output,
+                "execution_stdout": record.execution_stdout,
+                "execution_stderr": record.execution_stderr,
+                "execution_returncode": record.execution_returncode,
+                "evaluation": record.evaluation,
+            }
+            for record in trace_records
+        ],
+    }
     payload = {
         "summary": summary,
         "results": [task_result for task_result, _ in task_results],
+        "traces": traces_payload,
     }
     (output_dir / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     save_trace_summary(trace_records, output_dir / "traces.json")

@@ -80,7 +80,8 @@ def run_agent_once(
     max_tokens: int,
 ) -> AgentRunResult:
     output_dir.mkdir(parents=True, exist_ok=True)
-    skill_text = skill_path.read_text(encoding="utf-8")
+    resolved_skill_path = skill_path / "SKILL.md" if skill_path.is_dir() else skill_path
+    skill_text = resolved_skill_path.read_text(encoding="utf-8")
     candidate_workbook_path = (output_dir / f"{task.task_id}_candidate.xlsx").resolve()
     code_path = (output_dir / f"{task.task_id}_agent_code.py").resolve()
 
