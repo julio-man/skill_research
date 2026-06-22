@@ -15,14 +15,14 @@ SYSTEM_PROMPT = """You are a spreadsheet task agent.
 You will be given:
 1. A skill document.
 2. A spreadsheet task.
-3. The input workbook path.
-4. The output workbook path.
+3. Predefined workbook variables.
 
 You must produce ONLY Python code.
 Requirements:
 - Use Python to create a candidate workbook artifact.
 - Read the workbook from INPUT_WORKBOOK when needed.
 - Write the result to OUTPUT_WORKBOOK.
+- Treat INPUT_WORKBOOK and OUTPUT_WORKBOOK as already defined Python variables.
 - Do not print explanations.
 - Do not use markdown fences unless unavoidable.
 """
@@ -38,7 +38,6 @@ class AgentRunResult:
     execution_returncode: int
 
 
-
 def extract_python(raw: str) -> str:
     fence = re.search(r"```python\s*(.*?)```", raw, re.DOTALL | re.IGNORECASE)
     if fence:
@@ -49,18 +48,15 @@ def extract_python(raw: str) -> str:
     return raw.strip()
 
 
-
-def build_agent_messages(task: SpreadsheetTask, skill_text: str, output_workbook_path: Path) -> list[ChatMessage]:
-    input_workbook_path = task.initial_workbook_path.resolve()
-    output_workbook_path = output_workbook_path.resolve()
+def build_agent_messages(task: SpreadsheetTask, skill_text: str) -> list[ChatMessage]:
     user_prompt = f"""SKILL DOCUMENT:
 {skill_text}
 
 TASK:
 {task.instruction}
 
-INPUT_WORKBOOK={input_workbook_path}
-OUTPUT_WORKBOOK={output_workbook_path}
+INPUT_WORKBOOK is already defined and points to the source workbook.
+OUTPUT_WORKBOOK is already defined and points to where you should save the candidate workbook.
 
 Return only runnable Python code.
 """
@@ -68,7 +64,6 @@ Return only runnable Python code.
         ChatMessage(role="system", content=SYSTEM_PROMPT),
         ChatMessage(role="user", content=user_prompt),
     ]
-
 
 
 def run_agent_once(
@@ -85,7 +80,7 @@ def run_agent_once(
     candidate_workbook_path = (output_dir / f"{task.task_id}_candidate.xlsx").resolve()
     code_path = (output_dir / f"{task.task_id}_agent_code.py").resolve()
 
-    messages = build_agent_messages(task=task, skill_text=skill_text, output_workbook_path=candidate_workbook_path)
+    messages = build_agent_messages(task=task, skill_text=skill_text)
     raw_model_output = llm_client.complete(messages, temperature=temperature, max_tokens=max_tokens)
     code = extract_python(raw_model_output)
     prelude = (

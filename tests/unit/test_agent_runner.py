@@ -3,40 +3,39 @@ from __future__ import annotations
 from pathlib import Path
 
 from skill_research.data.types import RegionSpec, RegionSpecSet, SpreadsheetTask
-from skill_research.llm.client import ChatMessage, LLMClient
-from skill_research.runner.agent import AgentRunResult, build_agent_messages, extract_python, run_agent_once
+from skill_research.runner.agent import build_agent_messages, extract_python, run_agent_once
 
 
-class _FakeSDKClient:
-    def __init__(self, text: str):
-        self.text = text
-        self.seen_messages = None
+class _FakeLLMClient:
+    provider = "openai"
+    model = "fake-model"
 
+    def __init__(self, response: str):
+        self.response = response
 
-class _FakeLLMClient(LLMClient):
-    def __init__(self, text: str):
-        super().__init__(provider="openai", model="fake-model", sdk_client=_FakeSDKClient(text))
+    def complete(self, messages, temperature: float, max_tokens: int) -> str:
+        return self.response
 
-    def complete(self, messages: list[ChatMessage], temperature: float, max_tokens: int) -> str:
-        self.sdk_client.seen_messages = messages
-        return self.sdk_client.text
 
 
 def _make_task(tmp_path: Path) -> SpreadsheetTask:
     spreadsheet_dir = tmp_path / "task"
     spreadsheet_dir.mkdir()
-    init_path = spreadsheet_dir / "initial.xlsx"
-    golden_path = spreadsheet_dir / "golden.xlsx"
-    init_path.write_text("placeholder workbook")
-    golden_path.write_text("placeholder workbook")
+    initial = spreadsheet_dir / "initial.xlsx"
+    golden = spreadsheet_dir / "golden.xlsx"
+    initial.write_text("placeholder workbook", encoding="utf-8")
+    golden.write_text("placeholder workbook", encoding="utf-8")
     return SpreadsheetTask(
-        task_id="task-001",
-        instruction="Update the workbook according to the task.",
+        task_id="task-123",
+        instruction="Fill the target range.",
         instruction_type="Sheet-Level Manipulation",
         spreadsheet_dir=spreadsheet_dir,
-        initial_workbook_path=init_path,
-        golden_workbook_path=golden_path,
-        answer_spec=RegionSpecSet(regions=[RegionSpec(sheet_name=None, start_cell="A1", end_cell="A2", raw_text="A1:A2")], raw_text="A1:A2"),
+        initial_workbook_path=initial,
+        golden_workbook_path=golden,
+        answer_spec=RegionSpecSet(
+            regions=[RegionSpec(sheet_name=None, start_cell="A1", end_cell="A2", raw_text="A1:A2")],
+            raw_text="A1:A2",
+        ),
         answer_sheet=None,
         data_spec=None,
         is_excluded=False,
@@ -45,57 +44,46 @@ def _make_task(tmp_path: Path) -> SpreadsheetTask:
     )
 
 
-def test_extract_python_strips_markdown_fences() -> None:
-    raw = "```python\nprint('hi')\n```"
 
-    assert extract_python(raw) == "print('hi')"
+def test_extract_python_strips_python_fence() -> None:
+    raw = "```python\nprint('hello')\n```"
+
+    extracted = extract_python(raw)
+
+    assert extracted == "print('hello')"
 
 
-def test_build_agent_messages_contains_skill_task_and_paths(tmp_path: Path) -> None:
+
+def test_build_agent_messages_mentions_predefined_workbook_variables(tmp_path: Path) -> None:
     task = _make_task(tmp_path)
-    messages = build_agent_messages(
-        task=task,
-        skill_text="Always preserve unrelated cells.",
-        output_workbook_path=tmp_path / "candidate.xlsx",
-    )
 
-    assert messages[0].role == "system"
-    assert "produce ONLY Python code" in messages[0].content
-    assert "Always preserve unrelated cells." in messages[1].content
-    assert task.instruction in messages[1].content
-    assert str(task.initial_workbook_path) in messages[1].content
-    assert str(tmp_path / "candidate.xlsx") in messages[1].content
+    messages = build_agent_messages(task=task, skill_text="Use Python.")
+
+    assert len(messages) == 2
+    assert "Fill the target range." in messages[1].content
+    assert "INPUT_WORKBOOK is already defined" in messages[1].content
+    assert "OUTPUT_WORKBOOK is already defined" in messages[1].content
+    assert str(task.initial_workbook_path.resolve()) not in messages[1].content
 
 
-def test_run_agent_once_writes_code_and_candidate_artifact(tmp_path: Path) -> None:
+
+def test_run_agent_once_writes_and_executes_generated_code(tmp_path: Path) -> None:
     task = _make_task(tmp_path)
-    skill_dir = tmp_path / "skill"
-    skill_dir.mkdir()
-    skill_path = skill_dir / "SKILL.md"
-    skill_path.write_text("Use openpyxl.")
-    output_dir = tmp_path / "run"
+    skill_path = tmp_path / "SKILL.md"
+    skill_path.write_text("Use Python.", encoding="utf-8")
     llm_client = _FakeLLMClient(
-        """
-```python
-from pathlib import Path
-Path(OUTPUT_WORKBOOK).write_text('generated workbook')
-print('done')
-```
-""".strip()
+        "```python\nfrom pathlib import Path\nPath(OUTPUT_WORKBOOK).write_text('generated workbook')\n```"
     )
 
     result = run_agent_once(
         task=task,
-        skill_path=skill_dir,
-        output_dir=output_dir,
+        skill_path=skill_path,
+        output_dir=tmp_path / "run",
         llm_client=llm_client,
         temperature=0.0,
-        max_tokens=400,
+        max_tokens=100,
     )
 
-    assert isinstance(result, AgentRunResult)
     assert Path(result.code_path).exists()
-    assert Path(result.candidate_workbook_path).exists()
-    assert Path(result.candidate_workbook_path).read_text() == "generated workbook"
+    assert Path(result.candidate_workbook_path).read_text(encoding="utf-8") == "generated workbook"
     assert result.execution_returncode == 0
-    assert "done" in result.execution_stdout
