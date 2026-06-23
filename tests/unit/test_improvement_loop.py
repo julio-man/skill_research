@@ -7,11 +7,14 @@ from skill_research.patches.types import Patch
 from skill_research.runner.improvement import (
     ImprovementResult,
     MultiRoundImprovementResult,
+    MultiSeedSelectorComparisonResult,
     MultiSelectorImprovementResult,
+    SelectorAggregateRoundStats,
     SelectorRunResult,
     compute_score_delta_reward,
     ensure_noop_patch,
     run_multi_round_improvement,
+    run_multi_seed_multi_selector_multi_round_improvement,
     run_multi_selector_multi_round_improvement,
     run_single_round_improvement,
 )
@@ -94,6 +97,32 @@ class _FakeApplier:
     def apply_patch(self, skill_dir: str | Path, patch: Patch, label: str | None = None) -> str:
         self.calls.append((str(skill_dir), patch.patch_id, label))
         return str(Path(skill_dir).parent / f"{label}_{patch.patch_id}")
+
+
+class _SeededBenchmarkRunner:
+    def __init__(self, seed: int):
+        self.seed = seed
+        self.calls: list[tuple[str, str]] = []
+
+    def __call__(self, *, skill_path: Path, output_dir: Path):
+        self.calls.append((str(skill_path), str(output_dir)))
+        if str(skill_path).endswith("skill"):
+            return {
+                "summary": {
+                    "avg_score": self.seed / 100,
+                    "pass_rate": self.seed / 200,
+                    "failure_histogram": {"wrong_answer": 1},
+                },
+                "traces": {"num_traces": 1, "traces": []},
+            }
+        return {
+            "summary": {
+                "avg_score": self.seed / 100 + 0.2,
+                "pass_rate": self.seed / 200 + 0.1,
+                "failure_histogram": {"none": 1},
+            },
+            "traces": {"num_traces": 1, "traces": []},
+        }
 
 
 
@@ -209,3 +238,42 @@ def test_run_multi_selector_multi_round_improvement_branches_from_shared_round_z
     assert result.selector_runs["random_like"].history[0].selected_patch.patch_id == "p2"
     assert proposer.calls.count(str(skill_dir)) == 1
     assert len(benchmark_runner.calls) == 7
+
+
+
+def test_run_multi_seed_multi_selector_multi_round_improvement_aggregates_round_stats(tmp_path: Path) -> None:
+    skill_dir = tmp_path / "skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+
+    result = run_multi_seed_multi_selector_multi_round_improvement(
+        skill_dir=skill_dir,
+        workspace_dir=tmp_path / "workspace",
+        benchmark_runner_factory=lambda seed: _SeededBenchmarkRunner(seed),
+        proposer=_FakeProposer(),
+        selectors={
+            "support_like": _FakeSelector(),
+            "random_like": _PickSecondSelector(),
+        },
+        applier=_FakeApplier(),
+        reward_fn=compute_score_delta_reward,
+        seeds=[41, 42, 43],
+        rounds=2,
+        patch_count=2,
+    )
+
+    assert isinstance(result, MultiSeedSelectorComparisonResult)
+    assert set(result.per_seed_runs) == {41, 42, 43}
+    assert set(result.aggregate_by_selector) == {"support_like", "random_like"}
+
+    support_round_zero = result.aggregate_by_selector["support_like"][0]
+    assert isinstance(support_round_zero, SelectorAggregateRoundStats)
+    assert support_round_zero.reward_mean == 0.2
+    assert round(support_round_zero.reward_std, 10) == 0.0
+    assert support_round_zero.before_avg_score_mean == 0.42
+    assert support_round_zero.after_avg_score_mean == 0.62
+    assert support_round_zero.seeds == [41, 42, 43]
+
+    random_round_one = result.aggregate_by_selector["random_like"][1]
+    assert random_round_one.selected_patch_ids == {41: "p2", 42: "p2", 43: "p2"}
+    assert random_round_one.reward_mean == 0.0

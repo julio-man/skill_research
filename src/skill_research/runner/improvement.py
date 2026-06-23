@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import statistics
 
 from skill_research.patches.types import Patch
 from skill_research.traces import TraceRecord
@@ -34,6 +35,29 @@ class SelectorRunResult:
 @dataclass
 class MultiSelectorImprovementResult:
     selector_runs: dict[str, SelectorRunResult]
+
+
+@dataclass
+class SelectorAggregateRoundStats:
+    round_index: int
+    seeds: list[int]
+    reward_mean: float
+    reward_std: float
+    before_avg_score_mean: float
+    before_avg_score_std: float
+    after_avg_score_mean: float
+    after_avg_score_std: float
+    before_pass_rate_mean: float
+    before_pass_rate_std: float
+    after_pass_rate_mean: float
+    after_pass_rate_std: float
+    selected_patch_ids: dict[int, str]
+
+
+@dataclass
+class MultiSeedSelectorComparisonResult:
+    per_seed_runs: dict[int, MultiSelectorImprovementResult]
+    aggregate_by_selector: dict[str, list[SelectorAggregateRoundStats]]
 
 
 def compute_score_delta_reward(before_summary: dict, after_summary: dict) -> float:
@@ -73,6 +97,18 @@ def _generate_patch_pool(*, skill_dir: Path, benchmark_payload: dict, proposer, 
         llm_client=proposer_llm_client,
     )
     return before_summary, ensure_noop_patch(patch_pool)
+
+
+def _mean(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    return round(sum(values) / len(values), 10)
+
+
+def _std(values: list[float]) -> float:
+    if len(values) <= 1:
+        return 0.0
+    return round(statistics.stdev(values), 10)
 
 
 def run_single_round_improvement(
@@ -244,3 +280,75 @@ def run_multi_selector_multi_round_improvement(
         for selector_name in selectors
     }
     return MultiSelectorImprovementResult(selector_runs=selector_runs)
+
+
+def _aggregate_selector_rounds(
+    per_seed_runs: dict[int, MultiSelectorImprovementResult],
+) -> dict[str, list[SelectorAggregateRoundStats]]:
+    selector_names = next(iter(per_seed_runs.values())).selector_runs.keys() if per_seed_runs else []
+    aggregate: dict[str, list[SelectorAggregateRoundStats]] = {}
+    for selector_name in selector_names:
+        round_count = len(next(iter(per_seed_runs.values())).selector_runs[selector_name].history)
+        aggregate[selector_name] = []
+        for round_index in range(round_count):
+            seeds = sorted(per_seed_runs)
+            round_results = [
+                per_seed_runs[seed].selector_runs[selector_name].history[round_index]
+                for seed in seeds
+            ]
+            aggregate[selector_name].append(
+                SelectorAggregateRoundStats(
+                    round_index=round_index,
+                    seeds=seeds,
+                    reward_mean=_mean([result.reward for result in round_results]),
+                    reward_std=_std([result.reward for result in round_results]),
+                    before_avg_score_mean=_mean([result.before_summary["avg_score"] for result in round_results]),
+                    before_avg_score_std=_std([result.before_summary["avg_score"] for result in round_results]),
+                    after_avg_score_mean=_mean([result.after_summary["avg_score"] for result in round_results]),
+                    after_avg_score_std=_std([result.after_summary["avg_score"] for result in round_results]),
+                    before_pass_rate_mean=_mean([result.before_summary["pass_rate"] for result in round_results]),
+                    before_pass_rate_std=_std([result.before_summary["pass_rate"] for result in round_results]),
+                    after_pass_rate_mean=_mean([result.after_summary["pass_rate"] for result in round_results]),
+                    after_pass_rate_std=_std([result.after_summary["pass_rate"] for result in round_results]),
+                    selected_patch_ids={seed: result.selected_patch.patch_id for seed, result in zip(seeds, round_results, strict=True)},
+                )
+            )
+    return aggregate
+
+
+def run_multi_seed_multi_selector_multi_round_improvement(
+    *,
+    skill_dir: Path,
+    workspace_dir: Path,
+    benchmark_runner_factory,
+    proposer,
+    selectors: dict[str, object],
+    applier,
+    reward_fn,
+    seeds: list[int],
+    proposer_llm_client=None,
+    patch_count: int = 8,
+    rounds: int = 1,
+) -> MultiSeedSelectorComparisonResult:
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    per_seed_runs: dict[int, MultiSelectorImprovementResult] = {}
+
+    for seed in seeds:
+        benchmark_runner = benchmark_runner_factory(seed)
+        per_seed_runs[seed] = run_multi_selector_multi_round_improvement(
+            skill_dir=skill_dir,
+            workspace_dir=workspace_dir / f"seed_{seed}",
+            benchmark_runner=benchmark_runner,
+            proposer=proposer,
+            selectors=selectors,
+            applier=applier,
+            reward_fn=reward_fn,
+            proposer_llm_client=proposer_llm_client,
+            patch_count=patch_count,
+            rounds=rounds,
+        )
+
+    return MultiSeedSelectorComparisonResult(
+        per_seed_runs=per_seed_runs,
+        aggregate_by_selector=_aggregate_selector_rounds(per_seed_runs),
+    )
