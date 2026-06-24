@@ -1,5 +1,5 @@
 {
-  "experiment_id": "selector_comparison_gpt55_32evo_16val_32test_3seeds",
+  "experiment_id": "selector_comparison_gpt55_32evo_16val_32test_1seed",
   "dataset": {
     "name": "spreadsheetbench_verified",
     "split": "trace",
@@ -23,7 +23,7 @@
     "llm": {
       "name": "openai",
       "model": "gpt-5.5",
-      "max_tokens_parameter": null,
+      "max_tokens_parameter": 2000,
       "include_temperature": false,
       "reasoning_effort": "low"
     }
@@ -36,7 +36,7 @@
     "llm": {
       "name": "openai",
       "model": "gpt-5.5",
-      "max_tokens_parameter": null,
+      "max_tokens_parameter": 2000,
       "include_temperature": false,
       "reasoning_effort": "medium"
     }
@@ -71,6 +71,6 @@
   "run": {
     "rounds": 5,
     "seeds": [42],
-    "output_dir": "runs/selector_comparison_gpt55_32evo_16val_32test_3seeds/artifacts"
+    "output_dir": "runs/selector_comparison_gpt55_32evo_16val_32test_1seed/artifacts"
   }
 }
