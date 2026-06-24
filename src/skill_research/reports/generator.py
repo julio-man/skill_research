@@ -47,14 +47,34 @@ def _histogram(row: dict[str, Any]) -> dict[str, float]:
     return histogram if isinstance(histogram, dict) else {}
 
 
+def _std(values: list[float]) -> float | None:
+    if len(values) < 2:
+        return 0.0 if values else None
+    mean = sum(values) / len(values)
+    return (sum((value - mean) ** 2 for value in values) / (len(values) - 1)) ** 0.5
+
+
+def _reward_series(rows: ReportRows) -> dict[str, dict[str, list[float]]]:
+    series: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    for row in rows.per_round_rewards:
+        series[str(row["selector"])][str(row["seed"])].append(float(row["cumulative_reward"]))
+    return series
+
+
 def _selector_final_summary_rows(rows: ReportRows) -> list[dict[str, Any]]:
-    rewards = _final_reward_by_selector(rows)
+    reward_series = _reward_series(rows)
+    rewards = {selector: [values[-1] for values in by_seed.values() if values] for selector, by_seed in reward_series.items()}
+    aucs = {selector: [sum(values) for values in by_seed.values() if values] for selector, by_seed in reward_series.items()}
     test_by_selector: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows.final_test_scores:
         test_by_selector[str(row["selector"])].append(row)
+    noop_by_seed = {seed: values[-1] for seed, values in reward_series.get("noop", {}).items() if values}
+    random_by_seed = {seed: values[-1] for seed, values in reward_series.get("random", {}).items() if values}
     output = []
     for selector in sorted(set(rewards) | set(test_by_selector)):
         reward_values = rewards.get(selector, [])
+        auc_values = aucs.get(selector, [])
+        by_seed = reward_series.get(selector, {})
         test_rows = test_by_selector.get(selector, [])
         test_scores = [float(row.get("avg_score", 0.0)) for row in test_rows]
         pass_rates = [float(row.get("pass_rate", 0.0)) for row in test_rows]
@@ -62,14 +82,25 @@ def _selector_final_summary_rows(rows: ReportRows) -> list[dict[str, Any]]:
         for row in test_rows:
             for failure_type, count in _histogram(row).items():
                 failure_totals[f"{failure_type}_total"] += int(count)
+        delta_noop = [values[-1] - noop_by_seed[seed] for seed, values in by_seed.items() if values and seed in noop_by_seed]
+        delta_random = [values[-1] - random_by_seed[seed] for seed, values in by_seed.items() if values and seed in random_by_seed]
         summary = {
             "selector": selector,
             "seeds": len(set(str(row.get("seed")) for row in test_rows)) or len(reward_values),
             "final_cumulative_reward_mean": _mean(reward_values),
+            "final_cumulative_reward_std": _std(reward_values),
             "final_cumulative_reward_min": min(reward_values) if reward_values else None,
             "final_cumulative_reward_max": max(reward_values) if reward_values else None,
+            "cumulative_reward_auc_mean": _mean(auc_values),
+            "cumulative_reward_auc_std": _std(auc_values),
+            "delta_vs_noop_final_reward_mean": _mean(delta_noop),
+            "delta_vs_noop_final_reward_std": _std(delta_noop),
+            "delta_vs_random_final_reward_mean": _mean(delta_random),
+            "delta_vs_random_final_reward_std": _std(delta_random),
             "final_test_avg_score_mean": _mean(test_scores),
+            "final_test_avg_score_std": _std(test_scores),
             "final_test_pass_rate_mean": _mean(pass_rates),
+            "final_test_pass_rate_std": _std(pass_rates),
         }
         summary.update(dict(sorted(failure_totals.items())))
         output.append(summary)
@@ -81,14 +112,15 @@ def _selector_summary(rows: ReportRows) -> list[str]:
     summary_rows = _selector_final_summary_rows(rows)
     lines.append("## Final Selector Summary")
     lines.append("")
-    lines.append("| selector | seeds | final reward mean | final test avg score | final test pass rate |")
-    lines.append("| --- | ---: | ---: | ---: | ---: |")
+    lines.append("| selector | seeds | final reward mean±std | AUC mean±std | final test avg score mean±std | final test pass rate mean±std |")
+    lines.append("| --- | ---: | ---: | ---: | ---: | ---: |")
     for row in summary_rows:
         lines.append(
             f"| {row['selector']} | {row['seeds']} | "
-            f"{_format_number(row['final_cumulative_reward_mean'])} | "
-            f"{_format_number(row['final_test_avg_score_mean'])} | "
-            f"{_format_number(row['final_test_pass_rate_mean'])} |"
+            f"{_format_number(row['final_cumulative_reward_mean'])}±{_format_number(row['final_cumulative_reward_std'])} | "
+            f"{_format_number(row['cumulative_reward_auc_mean'])}±{_format_number(row['cumulative_reward_auc_std'])} | "
+            f"{_format_number(row['final_test_avg_score_mean'])}±{_format_number(row['final_test_avg_score_std'])} | "
+            f"{_format_number(row['final_test_pass_rate_mean'])}±{_format_number(row['final_test_pass_rate_std'])} |"
         )
     lines.append("")
     lines.append("## Generated Final-Test Table")
@@ -126,16 +158,23 @@ def _plot_reward_curve(rows: list[dict[str, Any]], value_key: str, ylabel: str, 
     for row in rows:
         grouped[str(row["selector"])][int(row["round"])].append(float(row[value_key]))
     path.parent.mkdir(parents=True, exist_ok=True)
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(9, 5.5))
     for selector, by_round in sorted(grouped.items()):
         rounds = sorted(by_round)
         means = [sum(by_round[round_index]) / len(by_round[round_index]) for round_index in rounds]
-        plt.plot(rounds, means, marker="o", label=selector)
+        stds = [_std(by_round[round_index]) or 0.0 for round_index in rounds]
+        lows = [mean - std for mean, std in zip(means, stds)]
+        highs = [mean + std for mean, std in zip(means, stds)]
+        plt.plot(rounds, means, marker="o", linewidth=2, label=selector)
+        if any(std > 0 for std in stds):
+            plt.fill_between(rounds, lows, highs, alpha=0.18)
+    plt.axhline(0, color="#666666", linewidth=0.8, linestyle="--")
     plt.xlabel("Round")
     plt.ylabel(ylabel)
-    plt.title(ylabel)
+    plt.title(f"{ylabel} (mean ± std across seeds)")
     if grouped:
         plt.legend()
+    plt.grid(alpha=0.2)
     plt.tight_layout()
     plt.savefig(path, dpi=180)
     plt.close()

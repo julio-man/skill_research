@@ -77,8 +77,12 @@ class SpreadsheetEvaluator:
 
     def evaluate(self, task: Task, execution) -> EvaluationResult:
         artifact_path = Path(execution["artifact_path"] if isinstance(execution, dict) else execution.artifact_path)
+        returncode = execution.get("returncode") if isinstance(execution, dict) else execution.returncode
+        stderr = execution.get("stderr", "") if isinstance(execution, dict) else execution.stderr
         golden_path = Path(task.metadata["golden_workbook_path"])
         if not artifact_path.exists():
+            if returncode == -2 or stderr == "empty_model_output":
+                return EvaluationResult(False, 0.0, "empty_model_output", [CheckResult("model_output", False, "Model returned no executable code")])
             return EvaluationResult(False, 0.0, "artifact_missing", [CheckResult("artifact_exists", False, "Artifact missing")])
         candidate = load_workbook(artifact_path, data_only=True)
         golden = load_workbook(golden_path, data_only=True)

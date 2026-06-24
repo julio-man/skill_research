@@ -59,6 +59,16 @@ class SpreadsheetPythonExecutor:
         response = self.backend.complete(request)
         raw = response.content if isinstance(response, CompletionResponse) else str(response)
         code = sanitize_generated_python(extract_python(raw))
+        if not code.strip():
+            code_path.write_text("", encoding="utf-8")
+            return ExecutionResult(
+                artifact_path=_relative_path(artifact_path),
+                code_path=_relative_path(code_path),
+                raw_output=raw,
+                stdout="",
+                stderr="empty_model_output",
+                returncode=-2,
+            )
         input_path = Path(task.input_path).resolve() if task.input_path is not None else None
         input_for_code = _relative_path(input_path, output_dir) if input_path is not None else ""
         output_for_code = artifact_path.name

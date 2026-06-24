@@ -17,8 +17,10 @@ class OpenAIBackendConfig:
     api_key: str | None = None
     base_url: str | None = None
     provider: str = "openai"
-    max_tokens_parameter: str = "max_tokens"
+    max_tokens_parameter: str | None = "max_tokens"
     include_temperature: bool = True
+    reasoning_effort: str | None = None
+    verbosity: str | None = None
 
 
 class OpenAIChatBackend(LLMBackendBase):
@@ -34,10 +36,13 @@ class OpenAIChatBackend(LLMBackendBase):
         kwargs = {
             "model": self.config.model,
             "messages": [{"role": message.role, "content": message.content} for message in request.messages],
-            self.config.max_tokens_parameter: request.max_tokens,
         }
+        if self.config.max_tokens_parameter is not None:
+            kwargs[self.config.max_tokens_parameter] = request.max_tokens
         if self.config.include_temperature:
             kwargs["temperature"] = request.temperature
+        if self.config.reasoning_effort is not None:
+            kwargs["reasoning_effort"] = self.config.reasoning_effort
         if request.seed is not None:
             kwargs["seed"] = request.seed
         response = self.client.chat.completions.create(**kwargs)
