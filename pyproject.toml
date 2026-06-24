@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "anthropic>=0.57.1",
     "google-genai>=1.23.0",
+    "matplotlib>=3.11.0",
     "openai>=1.93.0",
     "openpyxl>=3.1.0",
 ]
@@ -19,11 +20,14 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = ["tests"]
 
 [project.scripts]
 skill_research = "skill_research:main"
-skill_research_fetch_data = "skill_research.data.fetch:main"
-skill_research_run_spreadsheetbench_verified = "skill_research.cli.run_spreadsheetbench_verified:main"
+skill_research_run_benchmark = "skill_research.cli.run_benchmark:main"
+skill_research_run_experiment = "skill_research.cli.run_experiment:main"
+skill_research_score_patch_pool = "skill_research.cli.score_patch_pool:main"
+skill_research_generate_report = "skill_research.cli.generate_report:main"
 
 [build-system]
 requires = ["uv_build>=0.11.21,<0.12.0"]

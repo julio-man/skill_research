@@ -22,11 +22,8 @@ textual.log
 
 .DS_Store
 
+.omni_code/
 AGENTS.md
-temp/
 docs/
-legacy
 data/
-.dev/
-results/
-
+runs/
