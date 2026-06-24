@@ -26,7 +26,7 @@ class OpenAIBackendConfig:
 class OpenAIChatBackend(LLMBackendBase):
     def __init__(self, config: OpenAIBackendConfig, client=None, client_factory=OpenAI):
         api_key = config.api_key or os.environ.get("OPENAI_API_KEY")
-        base_url = config.base_url or os.environ.get("OPENAI_BASE_URL") or os.environ.get("AZURE_OPENAI_ENDPOINT")
+        base_url = config.base_url or os.environ.get("AZURE_OPENAI_ENDPOINT") or os.environ.get("OPENAI_BASE_URL")
         if client is None and not api_key:
             raise ValueError("OpenAI backend requires an api key")
         super().__init__(LLMBackendInfo(name=config.name, provider=config.provider, model=config.model))
