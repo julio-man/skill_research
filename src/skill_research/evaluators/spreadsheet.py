@@ -85,6 +85,8 @@ class SpreadsheetEvaluator:
         if not artifact_path.exists():
             if returncode == -2 or stderr == "empty_model_output":
                 return EvaluationResult(False, 0.0, "empty_model_output", [CheckResult("model_output", False, "Model returned no executable code")])
+            if returncode == -3 or stderr == "llm_provider_error":
+                return EvaluationResult(False, 0.0, "llm_provider_error", [CheckResult("model_provider", False, "LLM provider rejected or failed the request")])
             if returncode not in (None, 0):
                 return EvaluationResult(False, 0.0, "execution_error", [CheckResult("code_execution", False, "Generated code failed before producing output", {"returncode": returncode, "stderr": stderr})])
             if raw_output:

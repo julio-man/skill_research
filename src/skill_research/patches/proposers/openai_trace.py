@@ -45,10 +45,11 @@ def build_patch_messages(skill_path: Path, traces: list[TraceRecord], k: int) ->
 class OpenAITracePatchProposer:
     name = "openai_trace"
 
-    def __init__(self, backend=None, temperature: float = 0.2, max_tokens: int = 2500):
+    def __init__(self, backend=None, temperature: float = 0.2, max_tokens: int = 2500, max_retries: int = 1):
         self.backend = backend
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.max_retries = max_retries
 
     def parse_response(self, content: str, valid_trace_ids: set[str] | None = None) -> list[Patch]:
         payload = json.loads(content)
@@ -100,8 +101,16 @@ class OpenAITracePatchProposer:
             return PatchPool([])
         k = int(config.get("k", config.get("patch_count", 8)))
         messages = build_patch_messages(skill.path, traces, k)
-        response = self.backend.complete(CompletionRequest(messages=messages, temperature=self.temperature, max_tokens=self.max_tokens))
+        retry_count = 0
+        while True:
+            try:
+                response = self.backend.complete(CompletionRequest(messages=messages, temperature=self.temperature, max_tokens=self.max_tokens))
+                break
+            except Exception:
+                if retry_count >= self.max_retries:
+                    raise
+                retry_count += 1
         content = response.content if isinstance(response, CompletionResponse) else str(response)
         valid_trace_ids = {trace.task_id for trace in traces}
         patches = self.parse_response(content, valid_trace_ids=valid_trace_ids)
-        return PatchPool(patches, metadata={"proposer": self.name, "raw_response": content})
+        return PatchPool(patches, metadata={"proposer": self.name, "raw_response": content, "retry_count": retry_count})

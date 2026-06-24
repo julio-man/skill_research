@@ -58,7 +58,24 @@ class SpreadsheetPythonExecutor:
             max_tokens=int(config.get("max_tokens", 2500)),
             seed=config.get("seed"),
         )
-        response = self.backend.complete(request)
+        try:
+            response = self.backend.complete(request)
+        except Exception as exc:
+            code_path.write_text("", encoding="utf-8")
+            return ExecutionResult(
+                artifact_path=_relative_path(artifact_path),
+                code_path=_relative_path(code_path),
+                raw_output="",
+                stdout="",
+                stderr="llm_provider_error",
+                returncode=-3,
+                metadata={
+                    "provider_error_type": exc.__class__.__name__,
+                    "provider_error_code": getattr(exc, "code", None),
+                    "provider_error_message": str(exc),
+                    "executor_elapsed_seconds": time.perf_counter() - run_start,
+                },
+            )
         response_metadata = response.metadata if isinstance(response, CompletionResponse) else {}
         raw = response.content if isinstance(response, CompletionResponse) else str(response)
         code = sanitize_generated_python(extract_python(raw))

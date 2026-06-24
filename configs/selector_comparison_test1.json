@@ -38,7 +38,7 @@
       "model": "gpt-5.5",
       "max_tokens_parameter": null,
       "include_temperature": false,
-      "reasoning_effort": "high"
+      "reasoning_effort": "medium"
     }
   },
   "applier": {
@@ -69,8 +69,8 @@
     }
   ],
   "run": {
-    "rounds": 10,
-    "seeds": [42, 43, 44],
+    "rounds": 5,
+    "seeds": [42],
     "output_dir": "runs/selector_comparison_gpt55_32evo_16val_32test_3seeds/artifacts"
   }
 }

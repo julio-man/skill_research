@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import inspect
 import shutil
 
 from skill_research.artifacts.store import JsonArtifactStore
 from skill_research.core.serialization import to_json_file, to_json_safe
+from skill_research.core.types import BenchmarkSummary, SkillRef
+from skill_research.experiments.benchmark import BenchmarkRunResult
 from skill_research.experiments.episode import EpisodeResult
 from skill_research.experiments.multi_round import MultiRoundResult
-from skill_research.traces.store import save_traces
+from skill_research.patches.types import PatchPool
+from skill_research.rewards.base import RewardResult
+from skill_research.selectors.base import SelectorDecision
+from skill_research.traces.store import load_traces, save_traces
 
 
 @dataclass(frozen=True)
@@ -54,6 +60,46 @@ def _copy_eval_artifacts(source_dir: Path, target_dir: Path, result) -> None:
     _write_eval_artifacts(result, target_dir)
 
 
+def _load_eval_artifacts(eval_dir: Path) -> BenchmarkRunResult | None:
+    summary_path = eval_dir / "evaluation_summary.json"
+    traces_path = eval_dir / "task_traces.json"
+    if not summary_path.exists() or not traces_path.exists():
+        return None
+    return BenchmarkRunResult(BenchmarkSummary(**json.loads(summary_path.read_text(encoding="utf-8"))), load_traces(traces_path))
+
+
+def _load_decision(round_dir: Path, patch_pool: PatchPool) -> SelectorDecision | None:
+    path = round_dir / "selection" / "decision.json"
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    patch_id = payload.get("patch_id")
+    patch = next((item for item in patch_pool.patches if item.patch_id == patch_id), None) if patch_id is not None else None
+    return SelectorDecision(payload.get("action_index"), patch_id or "noop", patch, payload.get("reason", "resume"), payload.get("scores", {}), payload.get("metadata", {}))
+
+
+def _load_completed_episode(round_dir: Path, skill, patch_pool: PatchPool) -> EpisodeResult | None:
+    if not (round_dir / "episode.json").exists():
+        return None
+    current_eval = _load_eval_artifacts(round_dir / "current_skill_eval")
+    selected_eval = _load_eval_artifacts(round_dir / "selected_skill_eval")
+    if current_eval is None or selected_eval is None:
+        return None
+    decision = _load_decision(round_dir, patch_pool)
+    selected_patch = decision.patch if decision is not None else None
+    reward_payload = json.loads((round_dir / "episode.json").read_text(encoding="utf-8")).get("reward", {})
+    reward = RewardResult(
+        value=float(reward_payload.get("value", 0.0)),
+        score_delta=float(reward_payload.get("score_delta", 0.0)),
+        pass_rate_delta=float(reward_payload.get("pass_rate_delta", 0.0)),
+        token_growth=int(reward_payload.get("token_growth", 0)),
+        anchor_regressions=int(reward_payload.get("anchor_regressions", 0)),
+        metadata=reward_payload.get("metadata", {}),
+    )
+    skill_after = SkillRef(round_dir / "selected_skill", (round_dir / "selected_skill").name)
+    return EpisodeResult(_summary(current_eval), _summary(selected_eval), selected_patch, reward, skill, skill_after, patch_pool)
+
+
 def _clean_patch_pool_metadata(patch_pool):
     metadata = dict(patch_pool.metadata)
     metadata.pop("raw_response", None)
@@ -92,9 +138,12 @@ def _write_episode_artifact(round_dir: Path, selector_name: str, seed: int, roun
 def _run_selector_episode_from_shared(selector_name: str, seed: int, round_index: int, episode, skill, current_eval, current_eval_dir: Path, patch_pool, output_dir: Path) -> EpisodeResult:
     round_dir = output_dir / "selectors" / selector_name / f"seed_{seed:03d}" / f"round_{round_index:03d}"
     round_dir.mkdir(parents=True, exist_ok=True)
+    clean_patch_pool = PatchPool.load(round_dir / "patch_proposal" / "patch_pool.json") if (round_dir / "patch_proposal" / "patch_pool.json").exists() else _clean_patch_pool_metadata(patch_pool)
+    completed = _load_completed_episode(round_dir, skill, clean_patch_pool)
+    if completed is not None:
+        return completed
     _copy_skill(skill, round_dir / "input_skill")
     _copy_eval_artifacts(current_eval_dir, round_dir / "current_skill_eval", current_eval)
-    clean_patch_pool = _clean_patch_pool_metadata(patch_pool)
     to_json_file(clean_patch_pool, round_dir / "patch_proposal" / "patch_pool.json")
     selector_state = {"round": round_index, "current_summary": _summary(current_eval), "current_traces": _traces(current_eval)}
     if getattr(episode, "validation_benchmark", None) is not None:
@@ -106,31 +155,37 @@ def _run_selector_episode_from_shared(selector_name: str, seed: int, round_index
             _write_eval_artifacts(validation_eval, round_dir / "selector_validation" / patch.patch_id)
             validation_scores[patch.patch_id] = _summary(validation_eval).avg_score
         selector_state["validation_scores"] = validation_scores
-    decision = episode.selector.select(selector_state, clean_patch_pool)
-    to_json_file(
-        {
-            "selector": selector_name,
-            "action_index": decision.action_index,
-            "patch_id": decision.patch_id if decision.patch is not None else None,
-            "reason": decision.reason,
-            "scores": decision.scores,
-            "metadata": decision.metadata,
-        },
-        round_dir / "selection" / "decision.json",
-    )
-    if decision.patch is None:
+    decision = _load_decision(round_dir, clean_patch_pool)
+    if decision is None:
+        decision = episode.selector.select(selector_state, clean_patch_pool)
+        to_json_file(
+            {
+                "selector": selector_name,
+                "action_index": decision.action_index,
+                "patch_id": decision.patch_id if decision.patch is not None else None,
+                "reason": decision.reason,
+                "scores": decision.scores,
+                "metadata": decision.metadata,
+            },
+            round_dir / "selection" / "decision.json",
+        )
+    selected_skill_dir = round_dir / "selected_skill"
+    if selected_skill_dir.exists() and (selected_skill_dir / "SKILL.md").exists():
+        skill_after = type(skill)(selected_skill_dir, selected_skill_dir.name)
+    elif decision.patch is None:
         skill_after = skill
-        _copy_skill(skill, round_dir / "selected_skill")
+        _copy_skill(skill, selected_skill_dir)
     else:
-        selected_skill_dir = round_dir / "selected_skill"
         temp_skill_dir = round_dir / "_selected_skill_tmp"
         application = episode.applier.apply(skill, decision.patch, temp_skill_dir)
         _copy_skill(application.skill, selected_skill_dir)
         if temp_skill_dir.exists():
             shutil.rmtree(temp_skill_dir)
         skill_after = type(application.skill)(selected_skill_dir, selected_skill_dir.name)
-    selected_eval = episode.benchmark.run(skill_after, round_dir / "selected_skill_eval")
-    _write_eval_artifacts(selected_eval, round_dir / "selected_skill_eval")
+    selected_eval = _load_eval_artifacts(round_dir / "selected_skill_eval")
+    if selected_eval is None:
+        selected_eval = episode.benchmark.run(skill_after, round_dir / "selected_skill_eval")
+        _write_eval_artifacts(selected_eval, round_dir / "selected_skill_eval")
     reward = episode.reward.compute(_summary(current_eval), _summary(selected_eval), context={})
     result = EpisodeResult(_summary(current_eval), _summary(selected_eval), decision.patch, reward, skill, skill_after, clean_patch_pool)
     _write_episode_artifact(round_dir, selector_name, seed, round_index, result)
@@ -178,8 +233,11 @@ def run_comparison(selector_episode_factories: dict[str, object], skill, output_
                 first_round_dir = output_dir / "selectors" / first_name / f"seed_{seed:03d}" / f"round_{round_index:03d}"
                 first_episode = _make_episode(selector_episode_factories[first_name], JsonArtifactStore(first_round_dir), seed)
                 current_eval_dir = first_round_dir / "current_skill_eval"
-                current_eval = first_episode.benchmark.run(current_skill, current_eval_dir)
-                patch_pool = first_episode.proposer.propose(current_skill, _traces(current_eval), {})
+                current_eval = _load_eval_artifacts(current_eval_dir)
+                if current_eval is None:
+                    current_eval = first_episode.benchmark.run(current_skill, current_eval_dir)
+                patch_pool_path = first_round_dir / "patch_proposal" / "patch_pool.json"
+                patch_pool = PatchPool.load(patch_pool_path) if patch_pool_path.exists() else first_episode.proposer.propose(current_skill, _traces(current_eval), {})
                 for selector_name in selector_names:
                     round_dir = output_dir / "selectors" / selector_name / f"seed_{seed:03d}" / f"round_{round_index:03d}"
                     episode = first_episode if selector_name == first_name else _make_episode(selector_episode_factories[selector_name], JsonArtifactStore(round_dir), seed)
