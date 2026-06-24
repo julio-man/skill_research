@@ -23,6 +23,17 @@ from skill_research.rewards import build_reward
 from skill_research.selectors import build_selector
 
 
+SECRET_KEYS = {"api_key", "base_url", "endpoint", "azure_openai_endpoint", "openai_base_url"}
+
+
+def redact_secrets(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: ("<redacted>" if str(key).lower() in SECRET_KEYS else redact_secrets(inner)) for key, inner in value.items()}
+    if isinstance(value, list):
+        return [redact_secrets(inner) for inner in value]
+    return value
+
+
 def _build_llm(config: dict[str, Any]):
     payload = dict(config)
     name = payload.pop("name")
@@ -83,7 +94,7 @@ def main(argv: list[str] | None = None) -> None:
     spec = load_experiment_spec(args.config)
     output_dir = Path(spec.run.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "experiment_config.resolved.json").write_text(json.dumps(asdict(spec), indent=2), encoding="utf-8")
+    (output_dir / "experiment_config.resolved.json").write_text(json.dumps(redact_secrets(asdict(spec)), indent=2), encoding="utf-8")
     selectors = build_selectors(spec)
     if args.dry_run:
         return

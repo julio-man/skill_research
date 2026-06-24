@@ -95,7 +95,7 @@ def _run_selector_episode_from_shared(selector_name: str, seed: int, round_index
     _copy_eval_artifacts(current_eval_dir, round_dir / "current_skill_eval", current_eval)
     clean_patch_pool = _clean_patch_pool_metadata(patch_pool)
     to_json_file(clean_patch_pool, round_dir / "patch_proposal" / "patch_pool.json")
-    selector_state = {}
+    selector_state = {"round": round_index, "current_summary": _summary(current_eval), "current_traces": _traces(current_eval)}
     if getattr(episode, "validation_benchmark", None) is not None:
         validation_scores = {}
         for patch in clean_patch_pool.patches:
