@@ -37,5 +37,5 @@ def test_verified_provider_can_include_excluded_records() -> None:
 
     split = provider.load_split("val")
 
-    assert len(split.tasks) == 400
+    assert len(split.tasks) == provider.info.metadata["valid_records"]
     assert any(task.metadata["is_excluded"] for task in split.tasks)

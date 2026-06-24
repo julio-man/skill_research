@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
+
+from openpyxl.utils.cell import range_boundaries
 
 from skill_research.core.types import Task
 from skill_research.datasets.base import DatasetInfo, DatasetProviderBase, DatasetSplit, build_stratified_splits
@@ -14,6 +17,56 @@ from skill_research.datasets.base import DatasetInfo, DatasetProviderBase, Datas
 
 class SpreadsheetBenchDataError(ValueError):
     pass
+
+
+def normalize_cell_range(cells: str) -> str:
+    cells = cells.strip().strip("'").replace("$", "")
+    match = re.fullmatch(r"([A-Za-z]+\d+):(\d+)", cells)
+    if match:
+        start_cell, end_row = match.groups()
+        start_col = re.match(r"[A-Za-z]+", start_cell).group(0)
+        return f"{start_cell}:{start_col}{end_row}"
+    return cells
+
+
+def _split_regions(value: str) -> list[str]:
+    regions = []
+    current = []
+    in_quote = False
+    for char in value:
+        if char == "'":
+            in_quote = not in_quote
+        if char == "," and not in_quote:
+            region = "".join(current).strip()
+            if region:
+                regions.append(region)
+            current = []
+        else:
+            current.append(char)
+    region = "".join(current).strip()
+    if region:
+        regions.append(region)
+    return regions
+
+
+def _region_cells(region: str) -> str:
+    region = region.strip().strip(",")
+    if "!" in region:
+        _sheet, cells = region.rsplit("!", 1)
+        return cells.strip().strip("'")
+    return region.strip().strip("'")
+
+
+def _validate_region_string(raw: Any) -> bool:
+    if not raw:
+        return False
+    for region in _split_regions(str(raw)):
+        cells = normalize_cell_range(_region_cells(region))
+        try:
+            range_boundaries(cells)
+        except ValueError:
+            return False
+    return True
 
 
 def discover_workbooks(task_dir: Path) -> tuple[Path, Path]:
@@ -49,15 +102,21 @@ class SpreadsheetBenchVerifiedDatasetProvider(DatasetProviderBase):
         self.stratify_by = stratify_by
         records = self._load_records()
         eligible_count = sum(1 for record in records if "exclude" not in record)
+        self._invalid_region_records = 0
+        self._tasks = self._build_tasks(records)
         super().__init__(
             DatasetInfo(
                 name=self.name,
                 domain="spreadsheet",
                 root=root,
-                metadata={"total_records": len(records), "eligible_records": eligible_count},
+                metadata={
+                    "total_records": len(records),
+                    "eligible_records": eligible_count,
+                    "valid_records": len(self._tasks),
+                    "invalid_region_records": self._invalid_region_records,
+                },
             )
         )
-        self._tasks = self._build_tasks(records)
         self._splits = self._build_splits()
 
     def _load_records(self) -> list[dict[str, Any]]:
@@ -73,9 +132,16 @@ class SpreadsheetBenchVerifiedDatasetProvider(DatasetProviderBase):
             exclude_reason = record.get("exclude")
             if exclude_reason and not self.include_excluded:
                 continue
+            if not _validate_region_string(record.get("answer_position")):
+                self._invalid_region_records += 1
+                continue
+            if record.get("data_position") and not _validate_region_string(record.get("data_position")):
+                self._invalid_region_records += 1
+                continue
             spreadsheet_dir = self.root / record["spreadsheet_path"]
             initial_path, golden_path = discover_workbooks(spreadsheet_dir)
             prompt_path = spreadsheet_dir / "prompt.txt"
+            answer_position = ",".join(normalize_cell_range(_region_cells(region)) if "!" not in region else region for region in _split_regions(str(record.get("answer_position"))))
             task = Task(
                 task_id=str(record["id"]),
                 instruction=str(record["instruction"]),
@@ -87,7 +153,7 @@ class SpreadsheetBenchVerifiedDatasetProvider(DatasetProviderBase):
                     "golden_workbook_path": str(golden_path),
                     "prompt_path": str(prompt_path) if prompt_path.exists() else None,
                     "instruction_type": record.get("instruction_type"),
-                    "answer_position": record.get("answer_position"),
+                    "answer_position": answer_position,
                     "answer_sheet": record.get("answer_sheet"),
                     "data_position": record.get("data_position"),
                     "exclude_reason": exclude_reason,
@@ -136,4 +202,4 @@ def load_spreadsheetbench_verified(root: Path) -> SpreadsheetBenchVerifiedDatase
     return SpreadsheetBenchVerifiedDatasetProvider(root)
 
 
-__all__ = ["SpreadsheetBenchDataError", "SpreadsheetBenchVerifiedDatasetProvider", "Task", "discover_workbooks", "load_spreadsheetbench_verified"]
+__all__ = ["SpreadsheetBenchDataError", "SpreadsheetBenchVerifiedDatasetProvider", "Task", "discover_workbooks", "load_spreadsheetbench_verified", "normalize_cell_range"]

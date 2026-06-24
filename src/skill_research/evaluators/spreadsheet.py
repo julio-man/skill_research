@@ -7,6 +7,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.cell import range_boundaries
 
 from skill_research.core.types import Task
+from skill_research.datasets.spreadsheetbench_verified import normalize_cell_range
 from skill_research.evaluators.base import CheckResult, EvaluationResult
 
 
@@ -41,7 +42,7 @@ def _parse_region(region: str, default_sheet: str | None) -> tuple[str, str]:
 
 
 def _expand_cells(sheet: str, cells: str) -> list[str]:
-    cells = cells.replace("$", "")
+    cells = normalize_cell_range(cells)
     if ":" not in cells:
         return [f"{sheet}!{cells.upper()}"]
     min_col, min_row, max_col, max_row = range_boundaries(cells)
@@ -79,11 +80,16 @@ class SpreadsheetEvaluator:
         artifact_path = Path(execution["artifact_path"] if isinstance(execution, dict) else execution.artifact_path)
         returncode = execution.get("returncode") if isinstance(execution, dict) else execution.returncode
         stderr = execution.get("stderr", "") if isinstance(execution, dict) else execution.stderr
+        raw_output = execution.get("raw_output", "") if isinstance(execution, dict) else execution.raw_output
         golden_path = Path(task.metadata["golden_workbook_path"])
         if not artifact_path.exists():
             if returncode == -2 or stderr == "empty_model_output":
                 return EvaluationResult(False, 0.0, "empty_model_output", [CheckResult("model_output", False, "Model returned no executable code")])
-            return EvaluationResult(False, 0.0, "artifact_missing", [CheckResult("artifact_exists", False, "Artifact missing")])
+            if returncode not in (None, 0):
+                return EvaluationResult(False, 0.0, "execution_error", [CheckResult("code_execution", False, "Generated code failed before producing output", {"returncode": returncode, "stderr": stderr})])
+            if raw_output:
+                return EvaluationResult(False, 0.0, "missing_output_artifact", [CheckResult("artifact_exists", False, "Generated code ran but did not create output workbook")])
+            return EvaluationResult(False, 0.0, "artifact_missing", [CheckResult("artifact_exists", False, "Artifact missing before generated code could be assessed")])
         candidate = load_workbook(artifact_path, data_only=True)
         golden = load_workbook(golden_path, data_only=True)
         checks: list[CheckResult] = []

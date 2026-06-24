@@ -50,7 +50,7 @@ def test_spreadsheetbench_provider_exposes_stratified_trace_val_test_splits() ->
     assert len(trace) == 128
     assert len(val) == 32
     assert len(test) == 128
-    assert len(reserve) == 110
+    assert len(reserve) == provider.info.metadata["valid_records"] - 128 - 32 - 128
     assert set(task.task_id for task in trace.tasks).isdisjoint(task.task_id for task in val.tasks)
     assert set(task.task_id for task in trace.tasks).isdisjoint(task.task_id for task in test.tasks)
     assert trace.metadata["split_strategy"] == "stratified"

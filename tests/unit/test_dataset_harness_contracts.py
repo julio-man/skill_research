@@ -63,4 +63,5 @@ def test_dataset_registry_builds_spreadsheetbench_provider() -> None:
     root = Path("data/spreadsheetbench_verified/spreadsheetbench_verified_400")
     provider = build_dataset_provider("spreadsheetbench_verified", root=root, limit=1)
     assert isinstance(provider, SpreadsheetBenchVerifiedDatasetProvider)
-    assert load_spreadsheetbench_verified(root).info == provider.info
+    assert load_spreadsheetbench_verified(root).info.name == provider.info.name
+    assert load_spreadsheetbench_verified(root).info.domain == provider.info.domain
