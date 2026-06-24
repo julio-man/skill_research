@@ -1,3 +1,5 @@
+"""Protocol for components that produce patch pools from traces."""
+
 from __future__ import annotations
 
 from typing import Protocol

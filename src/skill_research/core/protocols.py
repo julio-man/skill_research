@@ -1,3 +1,5 @@
+"""Shared structural protocols for swappable harness components."""
+
 from __future__ import annotations
 
 from pathlib import Path

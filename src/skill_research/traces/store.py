@@ -1,3 +1,5 @@
+"""JSON persistence helpers for task traces."""
+
 from __future__ import annotations
 
 import json

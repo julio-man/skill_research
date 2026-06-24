@@ -1,3 +1,5 @@
+"""Trace record dataclass for task and harness evidence."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

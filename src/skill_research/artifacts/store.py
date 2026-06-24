@@ -1,3 +1,5 @@
+"""Writes structured experiment artifacts to predictable JSON files."""
+
 from __future__ import annotations
 
 from pathlib import Path

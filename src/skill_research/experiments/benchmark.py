@@ -1,3 +1,5 @@
+"""Benchmark runner that evaluates one skill over a dataset split."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

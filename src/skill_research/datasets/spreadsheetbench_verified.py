@@ -1,3 +1,5 @@
+"""SpreadsheetBench Verified dataset provider and workbook discovery logic."""
+
 from __future__ import annotations
 
 import json

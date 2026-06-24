@@ -1,3 +1,5 @@
+"""Reward function based on average score improvement."""
+
 from __future__ import annotations
 
 from skill_research.rewards.base import RewardResult

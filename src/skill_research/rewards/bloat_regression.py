@@ -1,3 +1,5 @@
+"""Reward function that penalizes token growth and anchor regressions."""
+
 from __future__ import annotations
 
 from skill_research.rewards.base import RewardResult

@@ -1,3 +1,5 @@
+"""LLM patch proposer that turns benchmark traces into strict patch JSON."""
+
 from __future__ import annotations
 
 import json

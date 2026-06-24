@@ -1,3 +1,5 @@
+"""Heuristic selector that prefers the smallest non-noop patch."""
+
 from __future__ import annotations
 
 from skill_research.patches.types import PatchPool

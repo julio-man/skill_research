@@ -1,3 +1,5 @@
+"""Harness-event records for infrastructure and proposer failures."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

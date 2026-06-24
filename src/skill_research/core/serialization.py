@@ -1,3 +1,5 @@
+"""JSON-safe serialization helpers for dataclasses, paths, and artifacts."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass

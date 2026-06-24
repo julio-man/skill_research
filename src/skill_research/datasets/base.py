@@ -1,3 +1,5 @@
+"""Dataset-agnostic provider contracts and split-building helpers."""
+
 from __future__ import annotations
 
 from collections import defaultdict

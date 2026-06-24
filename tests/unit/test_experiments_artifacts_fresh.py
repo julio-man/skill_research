@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from skill_research.artifacts.store import JsonArtifactStore
-from skill_research.core.types import BenchmarkSummary, SkillRef, Task
+from skill_research.core.types import BenchmarkSummary, SkillRef
 from skill_research.experiments.comparison import run_comparison
 from skill_research.experiments.episode import PatchSelectionEpisode
 from skill_research.experiments.multi_round import run_multi_round

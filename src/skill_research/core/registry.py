@@ -1,3 +1,5 @@
+"""Small registry helper for constructing named swappable components."""
+
 from __future__ import annotations
 
 from collections.abc import Callable

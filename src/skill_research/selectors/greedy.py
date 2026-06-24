@@ -1,3 +1,5 @@
+"""Validation-driven selector that chooses the best-scoring patch."""
+
 from __future__ import annotations
 
 from skill_research.patches.types import PatchPool

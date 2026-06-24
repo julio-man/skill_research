@@ -1,3 +1,5 @@
+"""Single patch-selection episode logic and proposer-failure handling."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

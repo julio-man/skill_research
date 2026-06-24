@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from skill_research.artifacts.store import JsonArtifactStore
 from skill_research.core.types import BenchmarkSummary, SkillRef
 from skill_research.experiments.benchmark import BenchmarkRunResult
 from skill_research.experiments.comparison import run_comparison

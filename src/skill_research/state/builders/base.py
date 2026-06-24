@@ -1,3 +1,5 @@
+"""Protocol for turning experiment context into selector state."""
+
 from __future__ import annotations
 
 from typing import Protocol

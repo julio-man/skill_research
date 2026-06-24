@@ -1,3 +1,5 @@
+"""Generates report tables and figures from run artifacts."""
+
 from __future__ import annotations
 
 from collections import defaultdict

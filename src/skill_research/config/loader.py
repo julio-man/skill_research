@@ -1,3 +1,5 @@
+"""Loads JSON, TOML, or YAML experiment specs into typed config objects."""
+
 from __future__ import annotations
 
 import json

@@ -1,3 +1,5 @@
+"""Deterministic replay LLM backend for tests and reproducible smoke runs."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence

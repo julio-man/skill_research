@@ -1,3 +1,5 @@
+"""Spreadsheet executor that asks an LLM for Python and runs it on a workbook."""
+
 from __future__ import annotations
 
 from pathlib import Path

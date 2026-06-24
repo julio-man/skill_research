@@ -1,3 +1,5 @@
+"""Patch dataclasses and JSON persistence for patch pools."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field

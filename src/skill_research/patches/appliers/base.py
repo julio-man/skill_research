@@ -1,3 +1,5 @@
+"""Protocol for components that materialize a patch into a new skill."""
+
 from __future__ import annotations
 
 from pathlib import Path

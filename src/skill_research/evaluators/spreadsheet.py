@@ -1,8 +1,8 @@
+"""Spreadsheet evaluator that compares generated workbooks against golden cells."""
+
 from __future__ import annotations
 
 from pathlib import Path
-import re
-
 from openpyxl import load_workbook
 from openpyxl.utils.cell import range_boundaries
 

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import runtime_checkable
-
 from skill_research.core.protocols import ArtifactStore, DatasetProvider, Evaluator, Executor, PatchApplier, PatchProposer, RewardFunction, Selector, StateBuilder
 
 

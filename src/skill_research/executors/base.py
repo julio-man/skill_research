@@ -1,3 +1,5 @@
+"""Common result dataclass for task executors."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

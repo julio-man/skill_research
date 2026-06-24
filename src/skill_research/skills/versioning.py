@@ -1,3 +1,5 @@
+"""Deterministic hashing and path helpers for skill versions."""
+
 from __future__ import annotations
 
 import hashlib

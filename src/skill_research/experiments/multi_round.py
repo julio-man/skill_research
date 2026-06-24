@@ -1,3 +1,5 @@
+"""Simple multi-round runner for one selector episode factory."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

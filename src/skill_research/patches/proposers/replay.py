@@ -1,3 +1,5 @@
+"""Patch proposer that replays a saved patch pool."""
+
 from __future__ import annotations
 
 from pathlib import Path

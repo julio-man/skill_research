@@ -1,3 +1,5 @@
+"""Heuristic selector that prefers patches supported by more traces."""
+
 from __future__ import annotations
 
 from skill_research.patches.types import PatchPool

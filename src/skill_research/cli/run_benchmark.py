@@ -1,3 +1,5 @@
+"""CLI entrypoint for evaluating one skill on a configured benchmark split."""
+
 from __future__ import annotations
 
 import argparse

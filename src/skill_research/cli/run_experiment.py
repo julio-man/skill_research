@@ -1,3 +1,5 @@
+"""CLI entrypoint for running selector-based skill patch experiments."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,7 +8,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from skill_research.artifacts.store import JsonArtifactStore
 from skill_research.config.loader import load_experiment_spec
 from skill_research.core.types import SkillRef
 from skill_research.datasets import build_dataset_provider

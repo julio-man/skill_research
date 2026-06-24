@@ -1,3 +1,5 @@
+"""Generic chat-completion backend contract used by executors and proposers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

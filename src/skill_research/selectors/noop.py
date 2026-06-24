@@ -1,3 +1,5 @@
+"""Selector baseline that applies no patch."""
+
 from __future__ import annotations
 
 from skill_research.patches.types import PatchPool

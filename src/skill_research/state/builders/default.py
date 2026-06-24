@@ -1,3 +1,5 @@
+"""Default selector-state builder from skill, benchmark, and patch features."""
+
 from __future__ import annotations
 
 from skill_research.core.types import BenchmarkSummary, SkillRef
@@ -10,6 +12,7 @@ class DefaultStateBuilder:
     schema_version = "0.1"
 
     def build(self, skill: SkillRef, benchmark: BenchmarkSummary, patch_pool: PatchPool, history: list) -> SelectorState:
+        _ = history
         histogram = benchmark.failure_histogram
         known_total = sum(histogram.get(name, 0) for name in ["wrong_answer", "format_fail", "tool_fail", "timeout", "none"])
         n_other = max(sum(histogram.values()) - known_total, 0)

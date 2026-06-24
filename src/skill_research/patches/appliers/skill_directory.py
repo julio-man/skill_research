@@ -1,3 +1,5 @@
+"""Patch applier for directory-based skills."""
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,3 +1,5 @@
+"""Loads run artifacts into row-oriented report data."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

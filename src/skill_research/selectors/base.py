@@ -1,3 +1,5 @@
+"""Base selector types and persistence hooks."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -22,6 +24,7 @@ class BaseSelector:
     name = "base"
 
     def observe(self, transition: Any) -> None:
+        _ = transition
         return None
 
     def save_state(self, path: Path) -> None:

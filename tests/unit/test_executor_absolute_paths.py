@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from openpyxl import Workbook, load_workbook
+from openpyxl import Workbook
 
 from skill_research.core.types import SkillRef, Task
 from skill_research.executors.spreadsheet_python import SpreadsheetPythonExecutor

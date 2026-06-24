@@ -1,3 +1,5 @@
+"""CLI entrypoint for scoring a saved patch pool against a configured benchmark."""
+
 from __future__ import annotations
 
 import argparse

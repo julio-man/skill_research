@@ -1,3 +1,5 @@
+"""CLI entrypoint for turning run artifacts into human-readable reports."""
+
 from __future__ import annotations
 
 import argparse
