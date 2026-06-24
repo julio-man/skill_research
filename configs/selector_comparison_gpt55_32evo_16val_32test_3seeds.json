@@ -1,5 +1,5 @@
 {
-  "experiment_id": "selector_comparison_gpt55_32evo_16val_32test_4seeds",
+  "experiment_id": "selector_comparison_gpt55_32evo_16val_32test_3seeds",
   "dataset": {
     "name": "spreadsheetbench_verified",
     "split": "trace",
@@ -70,7 +70,7 @@
   ],
   "run": {
     "rounds": 10,
-    "seeds": [42, 43, 44, 45],
-    "output_dir": "runs/selector_comparison_gpt55_32evo_16val_32test_4seeds/artifacts"
+    "seeds": [42, 43, 44],
+    "output_dir": "runs/selector_comparison_gpt55_32evo_16val_32test_3seeds/artifacts"
   }
 }
