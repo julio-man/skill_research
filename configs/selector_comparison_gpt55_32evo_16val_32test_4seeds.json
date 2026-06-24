@@ -1,0 +1,76 @@
+{
+  "experiment_id": "selector_comparison_gpt55_32evo_16val_32test_4seeds",
+  "dataset": {
+    "name": "spreadsheetbench_verified",
+    "split": "trace",
+    "root": "data/spreadsheetbench_verified/spreadsheetbench_verified_400",
+    "split_strategy": "stratified",
+    "split_seed": 42,
+    "split_sizes": {
+      "trace": 32,
+      "val": 16,
+      "test": 32
+    },
+    "stratify_by": "instruction_type",
+    "validation_split": "val",
+    "test_split": "test"
+  },
+  "skill": {
+    "path": "skills/minimal_seed"
+  },
+  "executor": {
+    "name": "spreadsheet_python",
+    "llm": {
+      "name": "openai",
+      "model": "gpt-5.5",
+      "max_tokens_parameter": null,
+      "include_temperature": false,
+      "reasoning_effort": "low"
+    }
+  },
+  "evaluator": {
+    "name": "spreadsheet"
+  },
+  "proposer": {
+    "name": "openai_trace",
+    "llm": {
+      "name": "openai",
+      "model": "gpt-5.5",
+      "max_tokens_parameter": null,
+      "include_temperature": false,
+      "reasoning_effort": "high"
+    }
+  },
+  "applier": {
+    "name": "skill_directory"
+  },
+  "reward": {
+    "name": "score_delta"
+  },
+  "selectors": [
+    {
+      "name": "noop"
+    },
+    {
+      "name": "random"
+    },
+    {
+      "name": "support_count"
+    },
+    {
+      "name": "smallest_patch"
+    },
+    {
+      "name": "linucb",
+      "alpha": 1.0
+    },
+    {
+      "name": "linear_reward_regressor"
+    }
+  ],
+  "run": {
+    "rounds": 10,
+    "seeds": [42, 43, 44, 45],
+    "output_dir": "runs/selector_comparison_gpt55_32evo_16val_32test_4seeds/artifacts"
+  }
+}

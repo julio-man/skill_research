@@ -12,10 +12,12 @@ class RandomSelector(BaseSelector):
     name = "random"
 
     def __init__(self, seed: int = 42):
+        self.seed = seed
         self._random = random.Random(seed)
 
     def select(self, state, patch_pool: PatchPool) -> SelectorDecision:
         if not patch_pool.patches:
             raise ValueError("No patches available")
         patch = self._random.choice(patch_pool.patches)
-        return self._decision(patch_pool, patch, "random")
+        decision = self._decision(patch_pool, patch, "random")
+        return SelectorDecision(decision.action_index, decision.patch_id, decision.patch, decision.reason, metadata={"selector_seed": self.seed})

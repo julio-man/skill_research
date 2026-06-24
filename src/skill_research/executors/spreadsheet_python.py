@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 from skill_research.core.types import SkillRef, Task
 from skill_research.executors.base import ExecutionResult
@@ -41,6 +42,7 @@ class SpreadsheetPythonExecutor:
         self.backend = backend
 
     def run(self, task: Task, skill: SkillRef, output_dir: Path, config: dict) -> ExecutionResult:
+        run_start = time.perf_counter()
         output_dir.mkdir(parents=True, exist_ok=True)
         output_dir = output_dir.resolve()
         skill_path = skill.path / "SKILL.md" if skill.path.is_dir() else skill.path
@@ -57,6 +59,7 @@ class SpreadsheetPythonExecutor:
             seed=config.get("seed"),
         )
         response = self.backend.complete(request)
+        response_metadata = response.metadata if isinstance(response, CompletionResponse) else {}
         raw = response.content if isinstance(response, CompletionResponse) else str(response)
         code = sanitize_generated_python(extract_python(raw))
         if not code.strip():
@@ -68,13 +71,20 @@ class SpreadsheetPythonExecutor:
                 stdout="",
                 stderr="empty_model_output",
                 returncode=-2,
+                metadata={
+                    "llm_usage": response_metadata.get("usage"),
+                    "llm_elapsed_seconds": response_metadata.get("elapsed_seconds"),
+                    "executor_elapsed_seconds": time.perf_counter() - run_start,
+                },
             )
         input_path = Path(task.input_path).resolve() if task.input_path is not None else None
         input_for_code = _relative_path(input_path, output_dir) if input_path is not None else ""
         output_for_code = artifact_path.name
         prelude = f"INPUT_WORKBOOK = {input_for_code!r}\nOUTPUT_WORKBOOK = {output_for_code!r}\n"
         code_path.write_text(prelude + code, encoding="utf-8")
+        exec_start = time.perf_counter()
         proc = subprocess.run([sys.executable, str(code_path)], cwd=str(output_dir), capture_output=True, text=True)
+        code_elapsed = time.perf_counter() - exec_start
         return ExecutionResult(
             artifact_path=_relative_path(artifact_path),
             code_path=_relative_path(code_path),
@@ -82,4 +92,10 @@ class SpreadsheetPythonExecutor:
             stdout=proc.stdout,
             stderr=proc.stderr,
             returncode=proc.returncode,
+            metadata={
+                "llm_usage": response_metadata.get("usage"),
+                "llm_elapsed_seconds": response_metadata.get("elapsed_seconds"),
+                "code_execution_elapsed_seconds": code_elapsed,
+                "executor_elapsed_seconds": time.perf_counter() - run_start,
+            },
         )

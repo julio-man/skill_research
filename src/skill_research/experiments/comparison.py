@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import inspect
 import shutil
 
 from skill_research.artifacts.store import JsonArtifactStore
@@ -154,6 +155,12 @@ def _write_curve(output_dir: Path, selector_name: str, seed: int, episodes: list
     return run
 
 
+def _make_episode(factory, store, seed: int):
+    if "seed" in inspect.signature(factory).parameters:
+        return factory(store, seed=seed)
+    return factory(store)
+
+
 def run_comparison(selector_episode_factories: dict[str, object], skill, output_dir: Path, rounds: int, seeds: list[int]) -> ComparisonResult:
     selector_runs: dict[str, dict[str, MultiRoundResult]] = {name: {} for name in selector_episode_factories}
     comparison_payload = {"selectors": {name: {"seeds": {}} for name in selector_episode_factories}}
@@ -169,20 +176,20 @@ def run_comparison(selector_episode_factories: dict[str, object], skill, output_
             for current_skill, selector_names in current_skill_groups.items():
                 first_name = selector_names[0]
                 first_round_dir = output_dir / "selectors" / first_name / f"seed_{seed:03d}" / f"round_{round_index:03d}"
-                first_episode = selector_episode_factories[first_name](JsonArtifactStore(first_round_dir))
+                first_episode = _make_episode(selector_episode_factories[first_name], JsonArtifactStore(first_round_dir), seed)
                 current_eval_dir = first_round_dir / "current_skill_eval"
                 current_eval = first_episode.benchmark.run(current_skill, current_eval_dir)
                 patch_pool = first_episode.proposer.propose(current_skill, _traces(current_eval), {})
                 for selector_name in selector_names:
                     round_dir = output_dir / "selectors" / selector_name / f"seed_{seed:03d}" / f"round_{round_index:03d}"
-                    episode = first_episode if selector_name == first_name else selector_episode_factories[selector_name](JsonArtifactStore(round_dir))
+                    episode = first_episode if selector_name == first_name else _make_episode(selector_episode_factories[selector_name], JsonArtifactStore(round_dir), seed)
                     result = _run_selector_episode_from_shared(selector_name, seed, round_index, episode, current_skill, current_eval, current_eval_dir, patch_pool, output_dir)
                     episodes_by_selector[selector_name].append(result)
                     skills[selector_name] = result.skill_after
                     totals[selector_name] = round(totals[selector_name] + result.reward.value, 10)
                     cumulative_by_selector[selector_name].append(totals[selector_name])
         for selector_name in selector_episode_factories:
-            final_episode = selector_episode_factories[selector_name](JsonArtifactStore(output_dir / "selectors" / selector_name / f"seed_{seed:03d}"))
+            final_episode = _make_episode(selector_episode_factories[selector_name], JsonArtifactStore(output_dir / "selectors" / selector_name / f"seed_{seed:03d}"), seed)
             if getattr(final_episode, "test_benchmark", None) is not None:
                 final_eval = final_episode.test_benchmark.run(skills[selector_name], output_dir / "selectors" / selector_name / f"seed_{seed:03d}" / "final_test_eval")
                 _write_eval_artifacts(final_eval, output_dir / "selectors" / selector_name / f"seed_{seed:03d}" / "final_test_eval")

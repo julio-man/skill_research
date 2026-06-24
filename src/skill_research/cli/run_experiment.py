@@ -95,7 +95,6 @@ def main(argv: list[str] | None = None) -> None:
     output_dir = Path(spec.run.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "experiment_config.resolved.json").write_text(json.dumps(redact_secrets(asdict(spec)), indent=2), encoding="utf-8")
-    selectors = build_selectors(spec)
     if args.dry_run:
         return
 
@@ -110,11 +109,17 @@ def main(argv: list[str] | None = None) -> None:
     skill = SkillRef(Path(spec.skill.path), Path(spec.skill.path).name)
 
     factories = {}
-    for selector_name, selector in selectors.items():
-        def factory(store, selected=selector):
+    for selector_config in spec.selectors:
+        selector_name = selector_config.name
+
+        def factory(store, seed=None, config=selector_config):
+            params = dict(config.params)
+            if config.name == "random" and "seed" not in params and seed is not None:
+                params["seed"] = seed
+            selected = build_selector(config.name, **params)
             benchmark = ComponentBenchmarkRunner(dataset_split, executor, evaluator, executor_config=executor_config)
             test_benchmark = ComponentBenchmarkRunner(test_split, executor, evaluator, executor_config=executor_config) if test_split is not None else None
-            validation_benchmark = ComponentBenchmarkRunner(validation_split, executor, evaluator, executor_config=executor_config) if validation_split is not None and selector_name == "greedy" else None
+            validation_benchmark = ComponentBenchmarkRunner(validation_split, executor, evaluator, executor_config=executor_config) if validation_split is not None and config.name == "greedy" else None
             return PatchSelectionEpisode(benchmark, proposer, selected, applier, reward, store, test_benchmark=test_benchmark, validation_benchmark=validation_benchmark)
 
         factories[selector_name] = factory

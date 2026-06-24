@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import os
+import time
 from typing import Any
 
 from skill_research.core.serialization import to_json_file
@@ -39,9 +40,13 @@ class ComponentBenchmarkRunner:
         scores = []
         failure_histogram: dict[str, int] = {}
         for task in self.dataset_split.tasks:
+            task_start = time.perf_counter()
             task_dir = output_dir / "tasks" / task.task_id
             execution = self.executor.run(task, skill, task_dir, self.executor_config)
+            eval_start = time.perf_counter()
             evaluation = self.evaluator.evaluate(task, execution)
+            evaluation_elapsed = time.perf_counter() - eval_start
+            task_elapsed = time.perf_counter() - task_start
             scores.append(evaluation.score)
             failure_histogram[evaluation.failure_type] = failure_histogram.get(evaluation.failure_type, 0) + 1
             traces.append(
@@ -54,6 +59,10 @@ class ComponentBenchmarkRunner:
                         "input_path": _relative_path(task.input_path),
                         "execution": execution,
                         "evaluation": evaluation,
+                        "timing": {
+                            "evaluation_elapsed_seconds": evaluation_elapsed,
+                            "task_total_elapsed_seconds": task_elapsed,
+                        },
                     },
                 )
             )
